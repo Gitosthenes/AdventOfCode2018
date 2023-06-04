@@ -3,7 +3,7 @@ use std::{
     error::{self, Error},
     fs, result,
     str::FromStr,
-    vec,
+    vec
 };
 
 // Config
@@ -15,12 +15,12 @@ type Result<T> = result::Result<T, Box<dyn error::Error>>;
 fn main() -> Result<()> {
     let input = fs::read_to_string(INPUT_FILE)?;
     let points = input_to_points(&input)?;
-    let grid = Grid::new(points);
+    let grid = Grid::new(points).expect("failed to create grid");
 
     //Part 1
     let largest_observable = grid.op_largest_observable();
     println!("Part 1: {}", largest_observable);
-    
+
     //Part 2
     let central_mass = grid.op_central_mass();
     println!("Part 2: {}", central_mass);
@@ -55,18 +55,18 @@ struct Grid {
 }
 
 impl Grid {
-    fn new(input_locations: Vec<Point>) -> Self {
+    fn new(input_locations: Vec<Point>) -> Option<Self> {
         // Calculate bounds for grid
-        let (bound_x, bound_y) = Self::get_border(&input_locations);
+        let (bound_x, bound_y) = Self::get_border(&input_locations)?;
 
         // Part 1: Find closest input location to each point on full grid,
         // recording perimeter points along the way.
         let mut closest_locations: Vec<Vec<Point>> = Vec::with_capacity(bound_x);
         let mut perimeter_points: HashSet<Point> = HashSet::new();
-        
+
         // Part 2: Track points on grid that are within range of all input points
         let mut locations_in_range: Vec<Vec<bool>> = Vec::with_capacity(bound_x);
-        
+
         for x in 0..=bound_x {
             let mut p1_row: Vec<Point> = Vec::with_capacity(bound_y);
             let mut p2_row: Vec<bool> = Vec::with_capacity(bound_y);
@@ -78,13 +78,12 @@ impl Grid {
                 let mut ptr = 0;
 
                 let mut sum_dist = 0;
-                
+
                 // Check this point on grid against all input points:
                 //  p1: for the closest input point to it
                 //  p2: to sum up distances from this point to all inputs
                 for (loc_ptr, loc) in input_locations.iter().enumerate() {
-                    
-                    let dist = Self::manhattan_dist(&grid_point, &loc);
+                    let dist = Self::manhattan_dist(&grid_point, loc);
 
                     // P1
                     if dist < min_dist {
@@ -110,11 +109,11 @@ impl Grid {
         }
 
         // Create & return grid
-        Grid {
+        Some(Grid {
             perimeter: perimeter_points,
             area_map: closest_locations,
             range_map: locations_in_range,
-        }
+        })
     }
 
     fn op_largest_observable(&self) -> i32 {
@@ -122,7 +121,7 @@ impl Grid {
 
         for row in &self.area_map {
             for closest_to in row {
-                if self.perimeter.contains(&closest_to) {
+                if self.perimeter.contains(closest_to) {
                     continue;
                 } else {
                     finite_areas
@@ -141,32 +140,24 @@ impl Grid {
     }
 
     fn op_central_mass(&self) -> i32 {
-
         let mut area = 0;
 
         for row in &self.range_map {
             for in_range in row {
-                if *in_range { area += 1; }
+                if *in_range {
+                    area += 1;
+                }
             }
         }
 
         area
     }
 
-    fn get_border(points: &Vec<Point>) -> (usize, usize) {
-        let max_x = points
-            .iter()
-            .max_by(|p1, p2| p1.x.cmp(&p2.x))
-            .expect("failed to find max x")
-            .x as usize;
+    fn get_border(points: &[Point]) -> Option<(usize, usize)> {
+        let max_x = points.iter().max_by(|p1, p2| p1.x.cmp(&p2.x))?.x;
+        let max_y = points.iter().max_by(|p1, p2| p1.y.cmp(&p2.y))?.y;
 
-        let max_y = points
-            .iter()
-            .max_by(|p1, p2| p1.y.cmp(&p2.y))
-            .expect("failed to find max y")
-            .y as usize;
-
-        (max_x + 1, max_y + 1)
+        Some((max_x + 1, max_y + 1))
     }
 
     fn manhattan_dist(p1: &Point, p2: &Point) -> usize {
