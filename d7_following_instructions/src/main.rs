@@ -13,10 +13,10 @@ const BASE_TIME: usize = 60;
 
 fn main() -> Result<()> {
     let input = fs::read_to_string(INPUT_FILE)?;
-    let mut graph = Graph::from_input(&input);
+    let mut graph = Graph::from_input(&input)?;
 
-    let order = graph.op_alignment();
-    let time = graph.op_multi_threaded(&order);
+    let order = graph.op_alignment()?;
+    let time = graph.op_multi_threaded(&order)?;
 
     println!("Part 1: {}", order);
     println!("Part 2: {}", time);
@@ -43,9 +43,9 @@ struct Graph {
 
 impl Graph {
     // Part 0: Create `Graph` struct from the input text
-    fn from_input(input: &str) -> Self {
+    fn from_input(input: &str) -> Result<Self> {
         static PATTERN: &str = r"Step\s(?P<parent>[A-Z]{1})\smust\sbe\sfinished\sbefore\sstep\s(?P<child>[A-Z]{1})\scan\sbegin.";
-        let rgx = Regex::new(PATTERN).expect("failed to initialize regex");
+        let rgx = Regex::new(PATTERN)?;
 
         // For step/next-step relationaships
         let mut step_to_next: HashMap<String, Vec<String>> = HashMap::new();
@@ -53,7 +53,7 @@ impl Graph {
         let mut step_to_prev: HashMap<String, Vec<String>> = HashMap::new();
 
         for line in input.lines() {
-            let caps = rgx.captures(line).expect("failed to parse line");
+            let caps = rgx.captures(line).ok_or("failed to parse line")?;
             let (parent, child) = (&caps[1], &caps[2]);
 
             // Add step/next-step relationship
@@ -83,15 +83,15 @@ impl Graph {
 
         first.sort();
 
-        Graph {
+        Ok(Graph {
             first,
             step_to_next,
             step_to_prev,
-        }
+        })
     }
 
     // Part 1: Calculate correct order of steps
-    fn op_alignment(&mut self) -> String {
+    fn op_alignment(&mut self) -> Result<String> {
         // Put steps in order
         let mut queue = self.first.clone();
         let mut processed = String::new();
@@ -101,7 +101,7 @@ impl Graph {
             // Find next step where prereq steps completed
             let mut next_step = String::new();
             for (i, step) in queue.iter().enumerate() {
-                let prereqs = self.step_to_prev.get(step).expect("failed to get prereqs");
+                let prereqs = self.step_to_prev.get(step).ok_or("failed to get prereqs")?;
                 let mut prereqs_met = true;
 
                 for pre in prereqs {
@@ -126,7 +126,7 @@ impl Graph {
             let next_children: &mut Vec<String> = self
                 .step_to_next
                 .get_mut(&next_step)
-                .expect("failed to get children");
+                .ok_or("failed to get children")?;
 
             // Record next step
             processed.push_str(&next_step);
@@ -137,11 +137,11 @@ impl Graph {
             queue.sort();
         }
 
-        processed
+        Ok(processed)
     }
 
     // Part 2: Calculate time to complete steps w/ `NUM_WORKERS`
-    fn op_multi_threaded(&self, order: &str) -> usize {
+    fn op_multi_threaded(&self, order: &str) -> Result<usize> {
         // Map each step to the time it takes to complete
         let time_per_step = "_ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             .chars()
@@ -181,7 +181,7 @@ impl Graph {
                 if worker.current_step.is_none() {
                     for todo in &steps_todo {
                         //check if prerequisites met
-                        let prereqs = self.step_to_prev.get(todo).expect("failed to get prereqs");
+                        let prereqs = self.step_to_prev.get(todo).ok_or("failed to get prereqs")?;
                         let mut can_do = true;
 
                         for pre in prereqs {
@@ -196,14 +196,14 @@ impl Graph {
                             worker.current_step = Some(todo.to_owned());
                             worker.time_to_complete = *time_per_step
                                 .get(todo)
-                                .expect("failed to get completion time");
+                                .ok_or("failed to get completion time")?;
 
                             //update todo list
                             steps_todo.remove(
                                 steps_todo
                                     .iter()
                                     .position(|step| step == todo)
-                                    .expect("failed to find position of step in todo"),
+                                    .ok_or("failed to find position of step in todo")?,
                             );
 
                             //move to next worker
@@ -229,7 +229,7 @@ impl Graph {
             .map(|w| w.time_to_complete)
             .sum::<usize>();
 
-        time_taken
+        Ok(time_taken)
     }
 }
 
